@@ -52,37 +52,34 @@ def init_llm():
     logger.debug("WatsonxLLM initialized: %s", llm_hub)
 
     #Initialize embeddings using a pre-trained model to represent the text data.
-    embeddings =  # create object of Hugging Face Instruct Embeddings with (model_name,  model_kwargs={"device": DEVICE} )
-    
+    embeddings = HuggingFaceInstructEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2", 
+        model_kwargs={"device": DEVICE}
+    )
     logger.debug("Embeddings initialized with model device: %s", DEVICE)
 
 # Function to process a PDF document
 def process_document(document_path):
     global conversation_retrieval_chain
-
     logger.info("Loading document from path: %s", document_path)
     # Load the document
-    loader =  # ---> use PyPDFLoader and document_path from the function input parameter <---
+    loader = PyPDFLoader(document_path)
     documents = loader.load()
     logger.debug("Loaded %d document(s)", len(documents))
-
-    # Split the document into chunks, set chunk_size=1024, and chunk_overlap=64. assign it to variable text_splitter
-    text_splitter = # ---> use Recursive Character TextSplitter and specify the input parameters <---
+    # Split the document into chunks
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=64)
     texts = text_splitter.split_documents(documents)
     logger.debug("Document split into %d text chunks", len(texts))
-
     # Create an embeddings database using Chroma from the split text chunks.
     logger.info("Initializing Chroma vector store from documents...")
     db = Chroma.from_documents(texts, embedding=embeddings)
     logger.debug("Chroma vector store initialized.")
-
     # Optional: Log available collections if accessible (this may be internal API)
     try:
         collections = db._client.list_collections()  # _client is internal; adjust if needed
         logger.debug("Available collections in Chroma: %s", collections)
     except Exception as e:
         logger.warning("Could not retrieve collections from Chroma: %s", e)
-
     # Build the QA chain, which utilizes the LLM and retriever for answering questions. 
     conversation_retrieval_chain = RetrievalQA.from_chain_type(
         llm=llm_hub,
@@ -98,19 +95,14 @@ def process_document(document_path):
 def process_prompt(prompt):
     global conversation_retrieval_chain
     global chat_history
-
     logger.info("Processing prompt: %s", prompt)
     # Query the model using the new .invoke() method
     output = conversation_retrieval_chain.invoke({"question": prompt, "chat_history": chat_history})
     answer = output["result"]
     logger.debug("Model response: %s", answer)
-
     # Update the chat history
-    # TODO: Append the prompt and the bot's response to the chat history using chat_history.append and pass `prompt` `answer` as arguments
-    # --> write your code here <--	
-    
+    chat_history.append((prompt, answer))
     logger.debug("Chat history updated. Total exchanges: %d", len(chat_history))
-
     # Return the model's response
     return answer
 
